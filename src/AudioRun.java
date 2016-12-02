@@ -14,8 +14,21 @@ public interface AudioRun {
 	 */
 	public void stop();
 	/**
-	 * Releases the file handles and performs any memory-cleanup operations as required.
+	 * Stops the file (if playing), then releases the file handles 
+	 * and performs any memory-cleanup operations as required.
 	 * Attempting to play a closed AudioRun should throw an exception.
 	 */
 	public void close();
+	/**
+	 * Gets the time that this is currently at.
+	 * @return An int that is the time in seconds in the audio file, 
+	 * or -1 if there is an error.
+	 */
+	public int getTime();
+	/**
+	 * Gets the length of time for the audio file.
+	 * @return An int that is the time in seconds of the length 
+	 * of the audio in this file, or -1 if there is an error.
+	 */
+	public int getLength();
 }
