@@ -13,9 +13,6 @@ public class Sound {
 	/** The set of notes to play */
 	private HashSet<Note> notes;
 	
-	/** The set of notes to add when done iterating*/
-	private HashSet<Note> additionals;
-	
 	private boolean shouldStop = false;
 	
 	private boolean stopWhenDone = false;
@@ -23,7 +20,6 @@ public class Sound {
 	public Sound(){
 		this.sampleRate = 44100f;
 		this.notes = new HashSet<>();
-		this.additionals = new HashSet<>();
 		Thread t = new Thread(() -> {
 			try {
 				AudioFormat af = new AudioFormat(sampleRate, 8, 1, true, false);
@@ -39,26 +35,24 @@ public class Sound {
 					if(size == 0 && stopWhenDone){
 						break; //exit this, allowing proper closure
 					}
-					for(Note n : notes){
-						double angle = i / (sampleRate / n.getFreq()) * 2.0 * Math.PI;
-						amplitudeSum += Math.sin(angle) * n.getVolume();
-						n.descreaseCycle();
-						//if the amount of time left is 0, then remove the items at the index
-						if(n.getNumCycles() == 0){
-							System.out.println(notes.remove(n));
-							//TODO doesn't remove properly
-							//notes.remove(n); //don't need to define the equals since using reference
+					synchronized(notes){
+						for(Note n : notes){
+							double angle = i / (sampleRate / n.getFreq()) * 2.0 * Math.PI;
+							amplitudeSum += Math.sin(angle) * n.getVolume();
+							n.descreaseCycle();
+							//if the amount of time left is 0, then remove the items at the index
+							if(n.getNumCycles() == 0){
+								System.out.println(notes.remove(n));
+								//TODO doesn't remove properly
+								//notes.remove(n); //don't need to define the equals since using reference
+							}
 						}
 					}
+					
 					amplitudeSum /= size;
 					buf[0] = (byte) amplitudeSum;
 					sdl.write(buf, 0, 1); //blocks for 1/sampleRate of a second
-					//add the additionals
-					for(Note n : this.additionals){
-						//TODO - this block has concurrentModificationExceptions
-						this.notes.add(n);
-					}
-					this.additionals.clear();
+					
 				}
 				sdl.drain();
 				sdl.stop();
@@ -81,7 +75,10 @@ public class Sound {
 	 */
 	public void addSound(int freq, float duration, byte volume){
 		Note n = new Note(freq, (long)(duration * sampleRate), volume);
-		this.additionals.add(n);	
+		synchronized(this.notes){
+			this.notes.add(n);
+		}
+		
 	}
 	
 	/**
