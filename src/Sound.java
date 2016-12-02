@@ -45,7 +45,9 @@ public class Sound {
 						n.descreaseCycle();
 						//if the amount of time left is 0, then remove the items at the index
 						if(n.getNumCycles() == 0){
-							notes.remove(n); //don't need to define the equals since using reference
+							System.out.println(notes.remove(n));
+							//TODO doesn't remove properly
+							//notes.remove(n); //don't need to define the equals since using reference
 						}
 					}
 					amplitudeSum /= size;
@@ -53,12 +55,14 @@ public class Sound {
 					sdl.write(buf, 0, 1); //blocks for 1/sampleRate of a second
 					//add the additionals
 					for(Note n : this.additionals){
+						//TODO - this block has concurrentModificationExceptions
 						this.notes.add(n);
 					}
 					this.additionals.clear();
 				}
 				sdl.drain();
 				sdl.stop();
+				System.out.println("This thread finished normally.");
 			} catch(LineUnavailableException e){
 				System.out.println(e);
 			}
