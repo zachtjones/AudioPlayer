@@ -1,4 +1,6 @@
 import java.util.HashSet;
+import java.util.Iterator;
+
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.LineUnavailableException;
@@ -36,15 +38,14 @@ public class Sound {
 						break; //exit this, allowing proper closure
 					}
 					synchronized(notes){
-						for(Note n : notes){
+						for(Iterator<Note> iterator = notes.iterator(); iterator.hasNext(); ){
+							Note n = iterator.next();
 							double angle = i / (sampleRate / n.getFreq()) * 2.0 * Math.PI;
 							amplitudeSum += Math.sin(angle) * n.getVolume();
 							n.descreaseCycle();
-							//if the amount of time left is 0, then remove the items at the index
+							//if the amount of time left is 0, then remove the item
 							if(n.getNumCycles() == 0){
-								System.out.println(notes.remove(n));
-								//TODO doesn't remove properly
-								//notes.remove(n); //don't need to define the equals since using reference
+								iterator.remove();
 							}
 						}
 					}
