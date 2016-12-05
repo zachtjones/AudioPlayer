@@ -48,6 +48,7 @@ public class AiffRunner implements AudioRun {
 		this.p = p;
 		this.filename = filename;
 
+		//test if the file exists
 		File f = new File(filename);
 		if(!f.exists()){
 			throw new FileNotFoundException("The file: " + filename + " does not exist!");
@@ -95,10 +96,7 @@ public class AiffRunner implements AudioRun {
 				break;
 			}
 		}
-		//TODO http://www.muratnkonar.com/aiff/ and http://www.onicos.com/staff/iz/formats/aiff.html
-		//http://www.paulbourke.net/dataformats/audio/ and http://www.onicos.com/staff/iz/formats/ieee.c
-		//http://stackoverflow.com/questions/35669441/convert-80-bit-extended-precision-in-java
-
+		
 	}
 
 	/** Reads the common chunk of data, indicated by the 'COMM' marker */
