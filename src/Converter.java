@@ -22,4 +22,18 @@ public class Converter {
 				Byte.toUnsignedLong(bytes[1]) * 256 + 
 				Byte.toUnsignedLong(bytes[0]);
 	}
+	
+	/**
+	 * Returns a unisigned integer stored in a long (uint is not a type in java)
+	 * @param bytes The 4 byte array that represents the data.
+	 * @return A uint's representation of the big-endian bytes stored in a signed long.
+	 * This result will always be >= 0.
+	 */
+	public static long toUIntBigEndian(byte[] bytes){
+		//all bytes have to be treated as unsigned.
+				return Byte.toUnsignedLong(bytes[3]) + 
+						Byte.toUnsignedLong(bytes[2]) * 256 + 
+						Byte.toUnsignedLong(bytes[1]) * second + 
+						Byte.toUnsignedLong(bytes[0]) * third;
+	}
 }
