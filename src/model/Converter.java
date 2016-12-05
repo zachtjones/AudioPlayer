@@ -1,3 +1,4 @@
+package model;
 /**
  * Converts numerical data types.
  * 

@@ -1,9 +1,11 @@
+package model;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.SourceDataLine;
 
 import javafx.application.Platform;
+import runner.AudioRun;
 
 public class SoundPlayer implements AudioRun {
 	/** If this is closed*/

@@ -1,8 +1,13 @@
+package runner;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+
+import model.Converter;
+import model.Player;
+import model.SoundPlayer;
 
 public class AiffRunner implements AudioRun {
 

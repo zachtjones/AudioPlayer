@@ -1,7 +1,11 @@
+package model;
 import java.io.File;
 import java.io.IOException;
 import javafx.beans.InvalidationListener;
 import javafx.beans.Observable;
+import runner.AiffRunner;
+import runner.AudioRun;
+import runner.WAVRunner;
 
 public class Player implements Observable, AudioRun {
 

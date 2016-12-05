@@ -1,3 +1,4 @@
+package gui;
 import java.io.File;
 import java.io.IOException;
 
@@ -18,6 +19,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.FileChooser.ExtensionFilter;
+import model.Player;
 import javafx.stage.Stage;
 
 public class AudioPlayer extends Application implements InvalidationListener{
