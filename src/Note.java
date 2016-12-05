@@ -38,9 +38,26 @@ public class Note {
 		final int prime = 31;
 		int result = 1;
 		result = prime * result + freq;
-		result = prime * result + (int) (numCycles ^ (numCycles >>> 32));
 		result = prime * result + volume;
 		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		Note other = (Note) obj;
+		if (freq != other.freq)
+			return false;
+		if (numCycles != other.numCycles)
+			return false;
+		if (volume != other.volume)
+			return false;
+		return true;
 	}
 	
 }
