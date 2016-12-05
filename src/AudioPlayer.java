@@ -69,8 +69,8 @@ public class AudioPlayer extends Application implements InvalidationListener{
 		open.setOnAction(event -> {
 			FileChooser fc = new FileChooser();
 			fc.setTitle("Select the audio file");
-			fc.getExtensionFilters().add(new ExtensionFilter("Audio files (*.aac, *.aiff, *.flac, *.m4a, *.mp3, *.ogg, *.wav)", 
-					"*.aac", "*.aiff", "*.flac", "*.m4a", "*.mp3", "*.ogg", "*.wav"));
+			fc.getExtensionFilters().add(new ExtensionFilter("Audio files (*.aac, *.aif, *.aiff, *.flac, *.m4a, *.mp3, *.ogg, *.wav)", 
+					"*.aac", "*.aif", "*.aiff", "*.flac", "*.m4a", "*.mp3", "*.ogg", "*.wav"));
 			File f = fc.showOpenDialog(primaryStage);
 			if(f == null){ return; } //no file selected
 			
