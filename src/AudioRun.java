@@ -31,4 +31,7 @@ public interface AudioRun {
 	 * of the audio in this file, or -1 if there is an error.
 	 */
 	public int getLength();
+	/** Call when the state of the object changes. 
+	 * This should call back down to the GUI*/
+	public void stateChanged();
 }

@@ -3,6 +3,8 @@ import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.SourceDataLine;
 
+import javafx.application.Platform;
+
 public class SoundPlayer implements AudioRun {
 	/** If this is closed*/
 	private boolean isClosed;
@@ -14,6 +16,8 @@ public class SoundPlayer implements AudioRun {
 	private int cursor;
 	/** if this is paused */
 	private boolean isPaused;
+	/** The *.* file runner*/
+	private AudioRun runner;
 	
 	
 	/**
@@ -23,8 +27,10 @@ public class SoundPlayer implements AudioRun {
 	 * @param sampleBitSize The number of bits per sample as an int.
 	 * @param numChannels The number of channels of sound (1 is mono, 2 stereo, ...)
 	 * @param bigEndian Whether the data is big endian (true), or little endian (false)
+	 * @param runner The runner that constructed this object
 	 */
-	public SoundPlayer(byte[][] frames, float sampleRate, int sampleBitSize, int numChannels, boolean bigEndian){
+	public SoundPlayer(byte[][] frames, float sampleRate, int sampleBitSize, int numChannels, boolean bigEndian, AudioRun runner){
+		this.runner = runner;
 		this.isClosed = false;
 		this.frames = frames;
 		this.cursor = 0;
@@ -46,6 +52,14 @@ public class SoundPlayer implements AudioRun {
 					//blocks for 1/sampleRate of a second
 					sdl.write(frames[cursor], 0, frames[cursor].length); 
 					this.cursor ++;
+					
+					//update UI if needed 1 time every second
+					if(this.cursor % (int)this.sampleRate == 0){
+						Platform.runLater(() -> {
+							this.stateChanged();
+						});
+					}
+					
 					while(this.cursor >= frames.length && !isClosed){
 						sleep(50);
 					}
@@ -70,12 +84,14 @@ public class SoundPlayer implements AudioRun {
 		} else {
 			this.isPaused = false;
 		}
+		this.stateChanged();
 	}
 
 	@Override
 	public void pause() {
 		//pause this
 		this.isPaused = true;
+		this.stateChanged();
 	}
 
 	@Override
@@ -83,18 +99,20 @@ public class SoundPlayer implements AudioRun {
 		//pause and move to beginning
 		this.isPaused = true;
 		this.cursor = 0;
+		this.stateChanged();
 	}
 
 	@Override
 	public void close() {
 		//mark as closed, terminating the loop in the secondary thread.
 		this.isClosed = true;
+		this.stateChanged();
 	}
 
 	@Override
 	public int getTime() {
 		//the cursor / the total number of frames
-		return this.cursor / this.frames.length;
+		return (int) (this.cursor / this.sampleRate);
 	}
 
 	@Override
@@ -110,5 +128,12 @@ public class SoundPlayer implements AudioRun {
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
+	}
+
+
+	@Override
+	public void stateChanged() {
+		//call the state changed of the runner
+		runner.stateChanged();
 	}
 }

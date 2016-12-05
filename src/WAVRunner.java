@@ -28,9 +28,14 @@ public class WAVRunner implements AudioRun {
 	/** The acutal sound data for the file */
 	private byte[][] frames;
 
+	/** The player that makes the sounds */
 	private SoundPlayer player;
+	
+	/** The player that commands this object */
+	private Player p;
 
-	public WAVRunner(String filename) throws IOException{
+	public WAVRunner(String filename, Player p) throws IOException{
+		this.p = p;
 		long time = System.currentTimeMillis();
 		//The default byte ordering assumed for WAVE data files is little-endian. 
 		//Files written using the big-endian byte ordering scheme have the identifier 
@@ -144,7 +149,7 @@ public class WAVRunner implements AudioRun {
 			
 		}).start();
 		
-		this.player = new SoundPlayer(frames, this.sampleRate, bitsPerSample, numChannels, false);
+		this.player = new SoundPlayer(frames, this.sampleRate, bitsPerSample, numChannels, false, this);
 
 		System.out.println("Constructor finished with no errors");
 		System.out.println("Time: " + (System.currentTimeMillis() - time));
@@ -200,6 +205,10 @@ public class WAVRunner implements AudioRun {
 		return this.numChannels + " channels @" + this.sampleRate + " Hz";
 	}
 
-
+	/** Called by the SoundPlayer */
+	public void stateChanged(){
+		//carries the change down to the GUI
+		p.stateChanged();
+	}
 
 }

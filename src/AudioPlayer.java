@@ -43,6 +43,8 @@ public class AudioPlayer extends Application implements InvalidationListener{
 	private Label lblTime;
 	/** The label for the length of the audio file*/
 	private Label lblLength;
+	/** The label that shows the file info (sample rate & channels)*/
+	private Label lblInfo;
 	
 	public static void main(String[] args) {
 		//launch the program
@@ -142,6 +144,10 @@ public class AudioPlayer extends Application implements InvalidationListener{
 		
 		page.getChildren().add(buttons);
 		
+		//add the info label 
+		lblInfo = new Label();
+		page.getChildren().add(lblInfo);
+		
 		//construct the model
 		p = new Player();
 		p.addListener(this);
@@ -151,6 +157,10 @@ public class AudioPlayer extends Application implements InvalidationListener{
 		primaryStage.setScene(scene);
 		primaryStage.setTitle("Audio Player");
 		primaryStage.setResizable(false);
+		primaryStage.setOnCloseRequest(event ->{
+			//close the player when this closes
+			p.close();
+		});
 		primaryStage.show();
 		
 	}
@@ -186,10 +196,13 @@ public class AudioPlayer extends Application implements InvalidationListener{
 			pb.setProgress((double)time / (double)length);
 		}
 		int seconds = time % 60;
-		lblTime.setText(time == -1 ? "--:--" : "" + (time / 60) + ":" + (seconds < 10 ? "0" + seconds : seconds));
+		lblTime.setText(time == -1 ? "--:--" : "" + (time / 60) + ":" + 
+				(seconds < 10 ? "0" + seconds : seconds));
 		seconds = length % 60;
-		lblLength.setText(length == -1 ? "--:--" : "" + (length / 60) + ":" + (seconds < 10 ? "0" + seconds : seconds));
-		
+		lblLength.setText(length == -1 ? "--:--" : "" + (length / 60) + ":" + 
+				(seconds < 10 ? "0" + seconds : seconds));
+		//the info label
+		lblInfo.setText(p.getInfo());
 	}
 
 }

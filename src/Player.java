@@ -1,6 +1,5 @@
 import java.io.File;
 import java.io.IOException;
-
 import javafx.beans.InvalidationListener;
 import javafx.beans.Observable;
 
@@ -33,10 +32,11 @@ public class Player implements Observable, AudioRun {
 		System.out.println("Opening file: " + this.filename);
 
 		if(filename.getName().endsWith(".wav")){
-			this.runner = new WAVRunner(filename.getAbsolutePath());
+			this.runner = new WAVRunner(filename.getAbsolutePath(), this);
 			//TODO add more things
 		} else {
-			throw new IOException("Only the WAV file format is allowed at this time, the others are still in development.");
+			throw new IOException("Only the WAV file format is allowed at this time," + 
+					" the others are still in development.");
 		}
 
 		stateChanged();
