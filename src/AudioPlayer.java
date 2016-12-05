@@ -203,6 +203,11 @@ public class AudioPlayer extends Application implements InvalidationListener{
 				(seconds < 10 ? "0" + seconds : seconds));
 		//the info label
 		lblInfo.setText(p.getInfo());
+		
+		//if at end, update
+		if(p.isAtEnd()){
+			p.stop();
+		}
 	}
 
 }

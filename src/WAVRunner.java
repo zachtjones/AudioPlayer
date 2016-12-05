@@ -211,4 +211,10 @@ public class WAVRunner implements AudioRun {
 		p.stateChanged();
 	}
 
+	@Override
+	public boolean isAtEnd() {
+		//the player is at the end of the file
+		return player.isAtEnd();
+	}
+
 }

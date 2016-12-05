@@ -34,4 +34,10 @@ public interface AudioRun {
 	/** Call when the state of the object changes. 
 	 * This should call back down to the GUI*/
 	public void stateChanged();
+	
+	/**
+	 * Gets if the AudioRun is at the end.
+	 * @return true iff the AudioRun is at the end of the file.
+	 */
+	public boolean isAtEnd();
 }

@@ -60,6 +60,14 @@ public class SoundPlayer implements AudioRun {
 						});
 					}
 					
+					//update UI if at the end, only once
+					if(this.cursor >= frames.length){
+						Platform.runLater(() -> {
+							this.stateChanged();
+						});
+					}
+					
+					//at end, sleep until closed, or changed cursor position.
 					while(this.cursor >= frames.length && !isClosed){
 						sleep(50);
 					}
@@ -135,5 +143,12 @@ public class SoundPlayer implements AudioRun {
 	public void stateChanged() {
 		//call the state changed of the runner
 		runner.stateChanged();
+	}
+
+
+	@Override
+	public boolean isAtEnd() {
+		//return true if this is at the end of the file
+		return this.cursor == this.frames.length;
 	}
 }

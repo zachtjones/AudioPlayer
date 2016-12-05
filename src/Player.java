@@ -153,4 +153,11 @@ public class Player implements Observable, AudioRun {
 		}
 	}
 
+	@Override
+	public boolean isAtEnd() {
+		if(this.runner == null){ return false; }
+		//delegate down
+		return runner.isAtEnd();
+	}
+
 }
