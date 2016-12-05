@@ -33,9 +33,13 @@ public class Player implements Observable, AudioRun {
 
 		if(filename.getName().endsWith(".wav")){
 			this.runner = new WAVRunner(filename.getAbsolutePath(), this);
+		} else if(filename.getName().endsWith(".aif")){
+			this.runner = new AiffRunner(filename.getAbsolutePath(), this);
+		} else if(filename.getName().endsWith(".aiff")){
+			this.runner = new AiffRunner(filename.getAbsolutePath(), this);
 			//TODO add more things
 		} else {
-			throw new IOException("Only the WAV file format is allowed at this time," + 
+			throw new IOException("Only the .wav, .aiff, and .aif file formats are allowed at this time," + 
 					" the others are still in development.");
 		}
 
