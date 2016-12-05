@@ -4,7 +4,7 @@ import java.io.IOException;
 import javafx.beans.InvalidationListener;
 import javafx.beans.Observable;
 
-public class Player implements Observable {
+public class Player implements Observable, AudioRun {
 
 	private InvalidationListener observer;
 	private String filename;
@@ -32,14 +32,12 @@ public class Player implements Observable {
 		this.shortFilename = filename.getName();
 		System.out.println("Opening file: " + this.filename);
 
-		//TODO open the file, use a thread to load the information
 		if(filename.getName().endsWith(".wav")){
 			this.runner = new WAVRunner(filename.getAbsolutePath());
 			//TODO add more things
 		} else {
 			throw new IOException("Only the WAV file format is allowed at this time, the others are still in development.");
 		}
-
 
 		stateChanged();
 	}
@@ -49,6 +47,7 @@ public class Player implements Observable {
 	 * If the end was reached, this will play from the beginning.
 	 * Only call if canPlay() returns true.
 	 */
+	@Override
 	public void play(){
 		this.runner.play();
 		this.isPlaying = true;
@@ -65,6 +64,7 @@ public class Player implements Observable {
 	 * When play is called after this, the audio should continue where it was paused.
 	 * Only call if canPause() returns true.
 	 */
+	@Override
 	public void pause(){
 		this.runner.pause();
 		this.isPlaying = false;
@@ -81,6 +81,7 @@ public class Player implements Observable {
 	 * When play is called after this, the audio should continue from the start.
 	 * Only call if canStop() returns true.
 	 */
+	@Override
 	public void stop(){
 		this.runner.stop();
 		this.isPlaying = false;
@@ -108,7 +109,9 @@ public class Player implements Observable {
 		this.observer = null;
 	}
 
-	private void stateChanged(){
+	/** Call when the state is changed of this. 
+	 * Call this on the GUI thread */
+	public void stateChanged(){
 		if(this.observer == null){ return; }
 		//call invalidated on the observer
 		this.observer.invalidated(this);
@@ -119,6 +122,7 @@ public class Player implements Observable {
 	 * @return An int that is the time in seconds in the audio file, 
 	 * or -1 if there is an error.
 	 */
+	@Override
 	public int getTime() {
 		if(this.runner == null){return -1; }
 		return this.runner.getTime();
@@ -129,9 +133,24 @@ public class Player implements Observable {
 	 * @return An int that is the time in seconds of the length 
 	 * of the audio in this file, or -1 if there is an error.
 	 */
+	@Override
 	public int getLength() {
 		if(this.runner == null){return -1; }
 		return this.runner.getLength();
+	}
+	
+	/** Gets the info (number of channels and the sample rate) as a String */
+	public String getInfo(){
+		if(this.runner == null){return ""; }
+		return this.runner.toString();
+	}
+	
+	/** Closes the runner */
+	@Override
+	public void close(){
+		if(this.runner != null){
+			this.runner.close();
+		}
 	}
 
 }
