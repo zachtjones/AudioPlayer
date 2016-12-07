@@ -5,6 +5,7 @@ import javafx.beans.InvalidationListener;
 import javafx.beans.Observable;
 import runner.AiffRunner;
 import runner.AudioRun;
+import runner.MP3Runner;
 import runner.WAVRunner;
 
 public class Player implements Observable, AudioRun {
@@ -41,9 +42,11 @@ public class Player implements Observable, AudioRun {
 			this.runner = new AiffRunner(filename.getAbsolutePath(), this);
 		} else if(filename.getName().endsWith(".aiff")){
 			this.runner = new AiffRunner(filename.getAbsolutePath(), this);
+		} else if(filename.getName().endsWith(".mp3")){
+			this.runner = new MP3Runner(filename.getAbsolutePath(), this);
 			//TODO add more things
 		} else {
-			throw new IOException("Only the .wav, .aiff, and .aif file formats are allowed at this time," + 
+			throw new IOException("Only the .mp3, .wav, .aiff, and .aif file formats are allowed at this time," + 
 					" the others are still in development.");
 		}
 
