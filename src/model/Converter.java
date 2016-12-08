@@ -17,11 +17,22 @@ public class Converter {
 	 * This result will always be >= 0.
 	 */
 	public static long toUIntLittleEndian(byte[] bytes){
+		return toUIntLittleEndian(bytes, 0);
+	}
+	
+	/**
+	 * Returns a unisigned integer stored in a long (uint is not a type in java)
+	 * @param bytes The 4 byte array that represents the data.
+	 * @param offset The starting index in teh bytes array to pull 4 bytes from.
+	 * @return A uint's representation of the little-endian bytes stored in a signed long.
+	 * This result will always be >= 0.
+	 */
+	public static long toUIntLittleEndian(byte[] bytes, int offset){
 		//all bytes have to be treated as unsigned.
-		return Byte.toUnsignedLong(bytes[3]) * third + 
-				Byte.toUnsignedLong(bytes[2]) * second + 
-				Byte.toUnsignedLong(bytes[1]) * 256 + 
-				Byte.toUnsignedLong(bytes[0]);
+		return Byte.toUnsignedLong(bytes[3 + offset]) * third + 
+				Byte.toUnsignedLong(bytes[2 + offset]) * second + 
+				Byte.toUnsignedLong(bytes[1 + offset]) * 256 + 
+				Byte.toUnsignedLong(bytes[0 + offset]);
 	}
 	
 	/**
