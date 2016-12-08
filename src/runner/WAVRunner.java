@@ -54,72 +54,77 @@ public class WAVRunner implements AudioRun {
 		dis = new FileInputStream(f);
 		dat = new DataInputStream(dis);
 
-		//get the header, which is a marking this is a wav file.
-		byte[] temp4 = new byte[4];
-		dat.readFully(temp4);
-		if(!(new String(temp4).equals("RIFF"))){
+		//get the header, which is 36 bytes long.
+		byte[] header = new byte[36];
+		int indexHeader = 0;
+		dat.readFully(header);
+		if(!(new String(header, 0, 4).equals("RIFF"))){
 			//the file should start with RIFF
 			throw new IOException(
 					"Incorrect encoding for the WAV file, should be 'RIFF' encoded, but is "
-					+ new String(temp4));
+					+ new String(header, 0, 4));
 		}
-
+		indexHeader += 4;
+		
 		//the chunk size
 		//in java, there are no such things as unsigned 32-bit int's
 		//so I'm using a long to represent the data
-		dat.readFully(temp4);
 		//the bytes for the chunk size are little endian
-		this.chunkSize = Converter.toUIntLittleEndian(temp4);
-
+		this.chunkSize = Converter.toUIntLittleEndian(header, indexHeader);
+		indexHeader +=  4;
+		
 		//get the format: should be "WAVE"
-		dat.readFully(temp4);
-		if(!(new String(temp4).equals("WAVE"))){
+		if(!(new String(header, indexHeader, 4).equals("WAVE"))){
 			//the format should be WAVE
 			throw new IOException("Incorrect format for the WAV file, should be 'WAVE'");
 		}
+		indexHeader += 4;
 
 		//next four bytes encode "fmt " - the space is 0x20 (normal ascii space char)
-		dat.readFully(temp4);
-		if(!(new String(temp4).equals("fmt "))){
+		if(!(new String(header, indexHeader, 4).equals("fmt "))){
 			//the format should be WAVE
 			throw new IOException("Incorrect marker, should be 'fmt '");
 		}
+		indexHeader += 4;
 
 		//next 4 bytes specify the format <- 16 is PCM
-		dat.readFully(temp4);
-		if(!(Converter.toUIntLittleEndian(temp4) == 16L)){
+		if(!(Converter.toUIntLittleEndian(header, indexHeader) == 16L)){
 			throw new IOException("The WAV file should be PCM formatted.");
 		}
+		indexHeader += 4;
 
 		//next 2 bytes specify the compression-should be 1 for wav
-		byte[] temp2 = new byte[2];
-		dat.readFully(temp2);
-		if(!(temp2[0] == 1 && temp2[1] == 0)){
+		if(!(header[indexHeader] == 1 && header[indexHeader + 1] == 0)){
 			throw new IOException("This WAV file is compressed.");
 		}
+		indexHeader += 2;
 
 		//the next 2 bytes specify the number of channels
-		dat.readFully(temp2);
-		this.numChannels = Byte.toUnsignedInt(temp2[0]) + 256 * Byte.toUnsignedInt(temp2[1]);
-
+		this.numChannels = Byte.toUnsignedInt(header[indexHeader]) + 
+				256 * Byte.toUnsignedInt(header[indexHeader + 1]);
+		indexHeader += 2;
+		
 		//the next 4 bytes specify the sample rate
-		dat.readFully(temp4);
-		this.sampleRate = Converter.toUIntLittleEndian(temp4);
+		this.sampleRate = Converter.toUIntLittleEndian(header, indexHeader);
+		indexHeader += 4;
 
 		//the next 4 bytes specify the byte rate
-		dat.readFully(temp4);
-		this.byteRate = Converter.toUIntLittleEndian(temp4);
+		this.byteRate = Converter.toUIntLittleEndian(header, indexHeader);
+		indexHeader += 4;
 
 		//the next 2 bytes specify the bytes per sample
-		dat.readFully(temp2);
-		this.bytesPerSample = Byte.toUnsignedInt(temp2[0]) + 256 * Byte.toUnsignedInt(temp2[1]);
+		this.bytesPerSample = Byte.toUnsignedInt(header[indexHeader]) + 
+				256 * Byte.toUnsignedInt(header[indexHeader + 1]);
+		indexHeader += 2;
 
 		//the next 2 bytes specify the bits per sample
-		dat.readFully(temp2);
-		this.bitsPerSample = Byte.toUnsignedInt(temp2[0]) + 256 * Byte.toUnsignedInt(temp2[1]);
+		this.bitsPerSample = Byte.toUnsignedInt(header[indexHeader]) + 
+				256 * Byte.toUnsignedInt(header[indexHeader + 1]);
+		indexHeader += 2;
 
 		//there could be additional chunks defining metadata, don't care about those
 		//skip through these chunks, until 'data' chunk is reached
+		byte[] temp4 = new byte[4];
 		dat.readFully(temp4);
 		while(!(new String(temp4).equals("data"))){
 			dat.readFully(temp4);
