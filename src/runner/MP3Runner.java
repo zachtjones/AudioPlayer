@@ -1,27 +1,25 @@
 package runner;
 
-import java.io.BufferedReader;
-import java.io.DataInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import model.Player;
 import model.SoundPlayer;
+import runner.MP3Frame.ChannelMode;
 
 public class MP3Runner implements AudioRun {
 
 	/** The acutal sound data for the file, 
 	 * each sample is an array of bytes */
 	private byte[][] data;
-	
-	private long numSamples;
-	
+		
 	/** The number of samples per second */
 	private int sampleRate;
 	
@@ -34,12 +32,14 @@ public class MP3Runner implements AudioRun {
 	/** The player that commands this object */
 	private Player p;
 	
-	
-	/** The filename of the file */
-	private String filename;
-	
+	/**
+	 * Constructor for a mp3 runner. 
+	 * This will load the header information on this thread, and start a new one to decode the data.
+	 * @param filename The filename to read
+	 * @param p The player that constructed this object
+	 * @throws IOException If there is an issue reading the file, or incorrect formatting.
+	 */
 	public MP3Runner(String filename, Player p) throws IOException{
-		this.filename = filename;
 		this.p = p;
 		
 		File f = new File(filename);
@@ -78,24 +78,51 @@ public class MP3Runner implements AudioRun {
 			
 			//the tag information is not important for reading
 			index += length;
-			System.out.println("length: " + length);
+			System.out.println("length of tag: " + length);
 		} 
 		
 		//index is at the start of the first frame
 		//load the first frame
-		System.out.println(index);
+		System.out.println("Byte index of first frame: " + index);
+		System.out.print("First bits of first frame: ");
+		System.out.println(Arrays.toString(MP3Frame.toBits(fileData, index, 4)));
+		
 		MP3Frame first = new MP3Frame(fileData, index);
+		this.sampleRate = first.getSampleRate(); //assume constant sample rate
+		index += first.getSize();
 		
+		List<MP3Frame> frames = new ArrayList<>();
+		frames.add(first);
+		//load all the frames
+		while(index < fileData.length){
+			MP3Frame temp = new MP3Frame(fileData, index);
+			frames.add(temp);
+			index += temp.getSize();	
+		}
+		System.out.println("Number of frames: " + frames.size());
 		
+		int totalNumberSamples = frames.size() * 1152; //1152 samples / frame
 		
+		if(first.getNumChannels() == ChannelMode.MONO){
+			this.numChannels = 1;
+			this.data = new byte[totalNumberSamples][2];
+		} else {
+			this.numChannels = 2;
+			this.data = new byte[totalNumberSamples][4];
+		}
 		
-		//TODO load the file
+		//use 8 * channels bits per sample (1 byte for each sample on each channel)
+		this.player = new SoundPlayer(data, this.sampleRate, this.numChannels * 8, 
+				this.numChannels, false, this);
 		
-		//http://blog.bjrn.se/2008/10/lets-build-mp3-decoder.html
-		//http://www.multiweb.cz/twoinches/mp3inside.htm
-		//http://mpgedit.org/mpgedit/mpeg_format/mpeghdr.htm
-		//[TAG v2]   Frame1   Frame2   Frame3...   [TAG v1]
-		//System.out.println(Arrays.toString(toBits((byte)5, (byte)4)));
+		//TODO use a new thread to decode the data into the samples
+		//the frames are all loaded
+		Thread t = new Thread(() -> {
+			
+		});
+		//don't want to halt the program from stopping when the program is done.
+		t.setDaemon(true);
+		t.start();
 		
 	}
 	
