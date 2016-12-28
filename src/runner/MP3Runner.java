@@ -6,8 +6,8 @@ import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
 
 import model.Player;
@@ -91,7 +91,7 @@ public class MP3Runner implements AudioRun {
 		this.sampleRate = first.getSampleRate(); //assume constant sample rate
 		index += first.getSize();
 		
-		List<MP3Frame> frames = new ArrayList<>();
+		List<MP3Frame> frames = new LinkedList<>();
 		frames.add(first);
 		//load all the frames
 		while(index < fileData.length){
@@ -115,9 +115,13 @@ public class MP3Runner implements AudioRun {
 		this.player = new SoundPlayer(data, this.sampleRate, this.numChannels * 8, 
 				this.numChannels, false, this);
 		
-		//TODO use a new thread to decode the data into the samples
 		//the frames are all loaded
 		Thread t = new Thread(() -> {
+			int offset = 0;
+			for(MP3Frame frame : frames){
+				frame.loadData(data, offset);
+				offset += 1152; //1152 samples per frame
+			}
 			
 		});
 		//don't want to halt the program from stopping when the program is done.
