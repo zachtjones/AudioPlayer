@@ -45,6 +45,53 @@ public class MP3Frame {
 	private int sampleRate;
 	/** The number of bytes offset before the expected end.*/
 	private int mainDataBegin;
+	/** These are the scalefactor groups
+	this determines if the same scalefactors are transferred for both granules or not.
+	these four groups are transmitted if their values are 0
+	group 0 is bands 0, 1, 2, 3, 4, 5
+	group 1 is bands 6, 7, 8, 9, 10
+	group 2 is bands 11, 12, 13, 14, 15
+	group 3 is bands 16, 17, 18, 19, 20
+	if short windows are used in any granule/channel, 
+	the scalefactors are always sent for each granule in the channel */
+	private boolean group0, group1, group2, group3, group0R, group1R, group2R, group3R;
+	/**
+	the next 12 bits are the number of bits in the main data for
+	scalefactors and huffman encoded data
+	Used to calculate the location of the next granule and the ancillary information*/
+	private int sizeSF_HE, sizeSF_HE_R;
+	/** The size of the big values partition*/
+	private int sizeBigValues, sizeBigValuesR;
+	/** Specifies the quantization step size, this is needed in the 
+	requantization block of the decoder.*/
+	private int sizeGlobalGain, sizeGlobalGainR;
+	/** specify the number of bits used for scale factor bands.
+	the 2 groups are either 0-10, 11-20 for long windows and 0-6, 7-11 for short windows. */
+	private int scaleFactorBits1, scaleFactorBits2, scaleFactorBits1R, scaleFactorBits2R;
+	/** if this is true, then block_type, mixed_block_flag and subblock_gain are used */
+	private boolean windowSwitching, windowSwitchingR;
+	/** The mixed_block_flag indicates that different types of windows are used in the lower
+	and higher frequencies. 
+	If mixedBlocks is true the two lowest subbands are transformed
+	using a normal window and the remaining 30 subbands are transformed 
+	using the window specified by the block_type variable.*/
+	private boolean mixedBlocks, mixedBlocksR;
+	/** The type of windows used */
+	private WindowSwitching switchType, switchTypeR;
+	/** The huffman table selection for the regions */
+	private int[] tableSelect, tableSelectR;
+	/** this is the gain offset from global gain */
+	private int[] subblockGains, subblockGainsR;
+	/** The number of bands in the first region */
+	private int region1Bands, region1BandsR;
+	/** The number of bands in the second region */
+	private int region2Bands, region2BandsR;
+	/** Whether or not to amplify high frequencies */
+	private boolean amplifyHighFreqs, amplifyHighFreqsR;
+	/** The logarithmic step size, either 2 or sqrt(2)*/
+	private double scaleFactorScale, scaleFactorScaleR;
+	/** Specifies if an alternate table is used for the 1st region */
+	private boolean altTable1, altTable1R;
 
 	/**
 	 * Constructs a frame of mp3 audio data.
@@ -60,7 +107,7 @@ public class MP3Frame {
 		for(int i = 0; i < 11; i++){
 			//first 12 bits should be 1
 			if(header[i] != 1){
-				throw new IOException("Expected header chunk not present");
+				throw new IOException("Expected header chunk not present: " + Arrays.toString(header));
 			}
 		}
 		
@@ -74,7 +121,7 @@ public class MP3Frame {
 
 		//CRC protection bit. 
 		//This is used to set the need to check transmission errors.
-		boolean crcProt = header[15] == 1;
+		this.crc = header[15] == 1;
 
 		//get the bit rate 
 		this.bitsPerSample = getBitRate(header[16], header[17], header[18], header[19]);
@@ -128,7 +175,7 @@ public class MP3Frame {
 		int index = 4;
 		
 		//if there is the crc protection, skip ahead 16 bytes
-		if(crcProt){ index += 16; }
+		if(this.crc){ index += 16; }
 
 		//next part, the side information 
 		//(17 bytes for single channel, 32 bytes otherwise)
@@ -144,33 +191,22 @@ public class MP3Frame {
 				//msb (most significant bit) is first
 				mainDataBegin |= (int)sideBits[i] << (8-i); 
 			}
-			System.out.println("main data begin: " + mainDataBegin);
 			bitIndex += 9;
 			
 			//the next 5 bits are for private use, and have no value to the decoder
 			bitIndex += 5;
 			
 			//the next 4 bits specify the scale factor selection information.
-			//this determines if the same scalefactors are transferred for both granules or not.
-			//these four groups are transmitted if their values are 0
-			//group 0 is bands 0, 1, 2, 3, 4, 5
-			//group 1 is bands 6, 7, 8, 9, 10
-			//group 2 is bands 11, 12, 13, 14, 15
-			//group 3 is bands 16, 17, 18, 19, 20
-			//if short windows are used in any granule/channel, 
-			//	the scalefactors are always sent for each granule in the channel
-			boolean group0, group1, group2, group3;
 			group0 = sideBits[bitIndex] == 0;
 			group1 = sideBits[bitIndex + 1] == 0;
 			group2 = sideBits[bitIndex + 2] == 0;
 			group3 = sideBits[bitIndex + 3] == 0;
 			bitIndex += 4;
-			System.out.printf("Groups: %b %b %b %b", group0, group1, group2, group3);
 			
 			//the next 12 bits are the number of bits in the main data for
 			//scalefactors and huffman encoded data
 			//Used to calculate the location of the next granule and the ancillary information
-			int sizeSF_HE = 0;
+			this.sizeSF_HE = 0;
 			sizeSF_HE |= sideBits[bitIndex] << 11;
 			sizeSF_HE |= sideBits[bitIndex + 1] << 10;
 			sizeSF_HE |= sideBits[bitIndex + 2] << 9;
@@ -184,26 +220,24 @@ public class MP3Frame {
 			sizeSF_HE |= sideBits[bitIndex + 10] << 1;
 			sizeSF_HE |= sideBits[bitIndex + 11];
 			bitIndex += 12;
-			System.out.println("Size of scalefactors and hufman encoded: " + sizeSF_HE);
 			
 			//the next 9 bits are used to indicate the 
 			//size of the bit values partition in the main data
-			int sizeBigValues = getUnsignedInt(sideBits, bitIndex, 9);
+			this.sizeBigValues = getUnsignedInt(sideBits, bitIndex, 9);
 			bitIndex += 9;
-			System.out.println("Size of big values: " + sizeBigValues);
 			
 			//the next 8 bits specify the global_gain 
 			//Specifies the quantization step size, this is needed in the 
 			//requantization block of the decoder.
-			int sizeGlobalGain = getUnsignedInt(sideBits, bitIndex, 8);
+			this.sizeGlobalGain = getUnsignedInt(sideBits, bitIndex, 8);
 			bitIndex += 8;
-			System.out.println("Size of global gain: " + sizeGlobalGain);
 			
 			//the next 4 bits specify the number of bits used for scale factor bands.
 			//the 2 groups are either 0-10, 11-20 for long windows and 0-6, 7-11 for short windows.
 			int temp = getUnsignedInt(sideBits, bitIndex, 4);
 			bitIndex += 4;
-			int scaleFactorBits1 = 0, scaleFactorBits2 = 0;
+			this.scaleFactorBits1 = 0;
+			this.scaleFactorBits2 = 0;
 			//the table to set the values:
 			switch(temp){
 			case 0:scaleFactorBits1 = 0; scaleFactorBits2 = 0; break;
@@ -223,17 +257,16 @@ public class MP3Frame {
 			case 14:scaleFactorBits1 = 4; scaleFactorBits2 = 2; break;
 			case 15:scaleFactorBits1 = 4; scaleFactorBits2 = 3; break;
 			}
-			System.out.println("Scale factor bits: " + scaleFactorBits1 + " and " + scaleFactorBits2);
 			
 			//the next windows_switching_flag (1 bit, 2 bits)
 			//if this is set, then block_type, mixed_block_flag and subblock_gain are used
-			boolean windowSwitching = sideBits[bitIndex] == 1;
+			this.windowSwitching = sideBits[bitIndex] == 1;
 			bitIndex += 1;
 			//block type
-			WindowSwitching switchType = WindowSwitching.NORMAL;
+			this.switchType = WindowSwitching.NORMAL;
 			if(windowSwitching){
 				if(sideBits[bitIndex] == 0){
-					switchType = WindowSwitching.NORMAL;
+					switchType = WindowSwitching.START;
 				} else {
 					if(sideBits[bitIndex + 1] == 0){
 						switchType = WindowSwitching.SHORT_3;
@@ -244,29 +277,36 @@ public class MP3Frame {
 				
 				bitIndex += 2;
 			}
-			System.out.println("switch type: " + switchType);
-			//mixed block flag - 1 bit
-			boolean mixedBlocks;
+			//block type
+			this.switchTypeR = WindowSwitching.NORMAL;
 			if(windowSwitching){
-				mixedBlocks = sideBits[bitIndex] == 1;
+				if(sideBits[bitIndex] == 0){
+					switchTypeR = WindowSwitching.START;
+				} else {
+					if(sideBits[bitIndex + 1] == 0){
+						switchTypeR = WindowSwitching.SHORT_3;
+					} else {
+						switchTypeR = WindowSwitching.END;
+					}
+				}
+				
+				bitIndex += 2;
+			}
+			
+			//mixed block flag - 1 bit
+			this.mixedBlocks = false;
+			if(windowSwitching){
+				this.mixedBlocks = sideBits[bitIndex] == 1;
 				bitIndex++;
 			}
-			/*
-			The mixed_block_flag indicates that different types of windows are used in the lower
-			 and higher frequencies. 
-			 If mixed_block_flag is set the two lowest subbands are transformed
-			  using a normal window and the remaining 30 subbands are transformed 
-			  using the window specified by the block_type variable.
-			*/
 			
 			//the huffman table select region
-			int[] tableSelect;
 			if(windowSwitching){
 				//only need 2 tables with window switching in mono
-				tableSelect = new int[2];
+				this.tableSelect = new int[2];
 			} else {
 				//need 3 tables
-				tableSelect = new int[3];
+				this.tableSelect = new int[3];
 			}
 			//load in the table selections
 			for(int i = 0; i < tableSelect.length; i++){
@@ -278,9 +318,8 @@ public class MP3Frame {
 				tableSelect[i] |= sideBits[bitIndex + 4];
 				bitIndex += 5;
 			}
-			System.out.println("Table selections: " + Arrays.toString(tableSelect));
 			
-			int[] subblockGains = new int[tableSelect.length];
+			this.subblockGains = new int[tableSelect.length];
 			//subblock gain - same length as the tables
 			//this is the gain offset from global gain
 			if(windowSwitching && switchType == WindowSwitching.SHORT_3){
@@ -297,7 +336,7 @@ public class MP3Frame {
 			}
 			
 			//4 bits, the number of bands in the first region
-			int region1Bands = 0;
+			this.region1Bands = 0;
 			region1Bands |= sideBits[bitIndex] << 3;
 			region1Bands |= sideBits[bitIndex + 1] << 2;
 			region1Bands |= sideBits[bitIndex + 2] << 1;
@@ -306,34 +345,34 @@ public class MP3Frame {
 			bitIndex += 4;
 			
 			//3 bits, the number of bands in the second region
-			int region2Bands = 0;
+			this.region2Bands = 0;
 			region2Bands |= sideBits[bitIndex] << 2;
 			region2Bands |= sideBits[bitIndex + 1] << 1;
 			region2Bands |= sideBits[bitIndex + 2];
 			region2Bands += 1;
 			bitIndex += 3;
 			
-			boolean amplifyHighFreqs = false;
+			this.amplifyHighFreqs = false;
 			if(switchType != WindowSwitching.SHORT_3){
 				amplifyHighFreqs = sideBits[bitIndex] == 1;
 				bitIndex++;
 			}
 			
 			//the logarithmic step size
-			double scaleFactorScale = 2.0;
+			this.scaleFactorScale = 2.0;
 			if(sideBits[bitIndex] == 0){
 				scaleFactorScale = Math.sqrt(2.0);
 			}
 			bitIndex++;
 			
 			//the next bit is if the 1st region has alternative huffman table
-			boolean altTable1 = false;
+			this.altTable1 = false;
 			if(sideBits[bitIndex] == 1){
 				altTable1 = true;
 			}
 			
 			index += 17;
-			
+			//done with header / side information
 		} else {
 			byte[] sideBits = toBits(data, index, 32);
 			int bitIndex = 0;
@@ -344,122 +383,101 @@ public class MP3Frame {
 			//this is an unsigned number
 			for(int i = 0; i < 9; i++){
 				//msb (most significant bit) is first
-				mainDataBegin |= (int)sideBits[i] << (8-i); 
+				this.mainDataBegin |= (int)sideBits[i] << (8-i); 
 			}
-			System.out.println("main data begin: " + mainDataBegin);
 			bitIndex += 9;
 			
 			//the next 3 bits are for private use, and have no value to the decoder
 			bitIndex += 3;
 			
 			//the next 4, and then 4 bits specify the scale factor selection information.
-			//for left and then right channels
-			//this determines if the same scalefactors are transferred for both granules or not.
-			//these four groups are transmitted if their values are 0
-			//group 0 is bands 0, 1, 2, 3, 4, 5
-			//group 1 is bands 6, 7, 8, 9, 10
-			//group 2 is bands 11, 12, 13, 14, 15
-			//group 3 is bands 16, 17, 18, 19, 20
-			//if short windows are used in any granule/channel, 
-			//	the scalefactors are always sent for each granule in the channel
-			boolean group0L, group0R, group1L, group1R, group2L, group2R, group3L, group3R;
-			group0L = sideBits[bitIndex] == 0;
-			group1L = sideBits[bitIndex + 1] == 0;
-			group2L = sideBits[bitIndex + 2] == 0;
-			group3L = sideBits[bitIndex + 3] == 0;
+			group0 = sideBits[bitIndex] == 0;
+			group1 = sideBits[bitIndex + 1] == 0;
+			group2 = sideBits[bitIndex + 2] == 0;
+			group3 = sideBits[bitIndex + 3] == 0;
 			bitIndex += 4;
 			group0R = sideBits[bitIndex] == 0;
 			group1R = sideBits[bitIndex + 1] == 0;
 			group2R = sideBits[bitIndex + 2] == 0;
 			group3R = sideBits[bitIndex + 3] == 0;
 			bitIndex += 4;
-			System.out.printf("Groups left: %b %b %b %b", group0L, group1L, group2L, group3L);
-			System.out.println();
-			System.out.printf("Groups right: %b %b %b %b", group0R, group1R, group2R, group3R);
-			System.out.println();
 			
 			//the next 12 * 2 bits are the number of bits in the main data for
 			//scalefactors and huffman encoded data
 			//Used to calculate the location of the next granule and the ancillary information
-			int sizeSF_HE_Left = 0;
-			sizeSF_HE_Left |= sideBits[bitIndex] << 11;
-			sizeSF_HE_Left |= sideBits[bitIndex + 1] << 10;
-			sizeSF_HE_Left |= sideBits[bitIndex + 2] << 9;
-			sizeSF_HE_Left |= sideBits[bitIndex + 3] << 8;
-			sizeSF_HE_Left |= sideBits[bitIndex + 4] << 7;
-			sizeSF_HE_Left |= sideBits[bitIndex + 5] << 6;
-			sizeSF_HE_Left |= sideBits[bitIndex + 6] << 5;
-			sizeSF_HE_Left |= sideBits[bitIndex + 7] << 4;
-			sizeSF_HE_Left |= sideBits[bitIndex + 8] << 3;
-			sizeSF_HE_Left |= sideBits[bitIndex + 9] << 2;
-			sizeSF_HE_Left |= sideBits[bitIndex + 10] << 1;
-			sizeSF_HE_Left |= sideBits[bitIndex + 11];
+			this.sizeSF_HE = 0;
+			sizeSF_HE |= sideBits[bitIndex] << 11;
+			sizeSF_HE |= sideBits[bitIndex + 1] << 10;
+			sizeSF_HE |= sideBits[bitIndex + 2] << 9;
+			sizeSF_HE |= sideBits[bitIndex + 3] << 8;
+			sizeSF_HE |= sideBits[bitIndex + 4] << 7;
+			sizeSF_HE |= sideBits[bitIndex + 5] << 6;
+			sizeSF_HE |= sideBits[bitIndex + 6] << 5;
+			sizeSF_HE |= sideBits[bitIndex + 7] << 4;
+			sizeSF_HE |= sideBits[bitIndex + 8] << 3;
+			sizeSF_HE |= sideBits[bitIndex + 9] << 2;
+			sizeSF_HE |= sideBits[bitIndex + 10] << 1;
+			sizeSF_HE |= sideBits[bitIndex + 11];
 			bitIndex += 12;
-			int sizeSF_HE_Right = 0;
-			sizeSF_HE_Right |= sideBits[bitIndex] << 11;
-			sizeSF_HE_Right |= sideBits[bitIndex + 1] << 10;
-			sizeSF_HE_Right |= sideBits[bitIndex + 2] << 9;
-			sizeSF_HE_Right |= sideBits[bitIndex + 3] << 8;
-			sizeSF_HE_Right |= sideBits[bitIndex + 4] << 7;
-			sizeSF_HE_Right |= sideBits[bitIndex + 5] << 6;
-			sizeSF_HE_Right |= sideBits[bitIndex + 6] << 5;
-			sizeSF_HE_Right |= sideBits[bitIndex + 7] << 4;
-			sizeSF_HE_Right |= sideBits[bitIndex + 8] << 3;
-			sizeSF_HE_Right |= sideBits[bitIndex + 9] << 2;
-			sizeSF_HE_Right |= sideBits[bitIndex + 10] << 1;
-			sizeSF_HE_Right |= sideBits[bitIndex + 11];
+			this.sizeSF_HE_R = 0;
+			sizeSF_HE_R |= sideBits[bitIndex] << 11;
+			sizeSF_HE_R |= sideBits[bitIndex + 1] << 10;
+			sizeSF_HE_R |= sideBits[bitIndex + 2] << 9;
+			sizeSF_HE_R |= sideBits[bitIndex + 3] << 8;
+			sizeSF_HE_R |= sideBits[bitIndex + 4] << 7;
+			sizeSF_HE_R |= sideBits[bitIndex + 5] << 6;
+			sizeSF_HE_R |= sideBits[bitIndex + 6] << 5;
+			sizeSF_HE_R |= sideBits[bitIndex + 7] << 4;
+			sizeSF_HE_R |= sideBits[bitIndex + 8] << 3;
+			sizeSF_HE_R |= sideBits[bitIndex + 9] << 2;
+			sizeSF_HE_R |= sideBits[bitIndex + 10] << 1;
+			sizeSF_HE_R |= sideBits[bitIndex + 11];
 			bitIndex += 12;
-			System.out.println("Size of scalefactors and hufman encoded left: " + sizeSF_HE_Left);
-			System.out.println("Size of scalefactors and hufman encoded right: " + sizeSF_HE_Right);
 			
 			//the next 9 * 2 bits are used to indicate the 
 			//size of the bit values partition in the main data
-			int sizeBigValuesL = getUnsignedInt(sideBits, bitIndex, 9);
+			this.sizeBigValues = getUnsignedInt(sideBits, bitIndex, 9);
 			bitIndex += 9;
-			int sizeBigValuesR = getUnsignedInt(sideBits, bitIndex, 9);
+			this.sizeBigValuesR = getUnsignedInt(sideBits, bitIndex, 9);
 			bitIndex += 9;
-			System.out.println("Size of big values L: " + sizeBigValuesL);
-			System.out.println("Size of big values R: " + sizeBigValuesR);
 			
 			//the next 8 * 2 bits specify the global_gain 
 			//Specifies the quantization step size, this is needed in the 
 			//requantization block of the decoder.
-			int sizeGlobalGainL = getUnsignedInt(sideBits, bitIndex, 8);
+			this.sizeGlobalGain = getUnsignedInt(sideBits, bitIndex, 8);
 			bitIndex += 8;
-			int sizeGlobalGainR = getUnsignedInt(sideBits, bitIndex, 8);
+			this.sizeGlobalGainR = getUnsignedInt(sideBits, bitIndex, 8);
 			bitIndex += 8;
-			System.out.println("Size of global gain L: " + sizeGlobalGainL);
-			System.out.println("Size of global gain R: " + sizeGlobalGainR);
 			
 			//the next 4 * 2 bits specify the number of bits used for scale factor bands.
 			//the 2 groups are either 0-10, 11-20 for long windows and 0-6, 7-11 for short windows.
 			int temp = getUnsignedInt(sideBits, bitIndex, 4);
 			bitIndex += 4;
-			int scaleFactorBits1L = 0, scaleFactorBits2L = 0;
+			this.scaleFactorBits1 = 0;
+			this.scaleFactorBits2 = 0;
 			//the table to set the values:
 			switch(temp){
-			case 0:scaleFactorBits1L = 0; scaleFactorBits2L = 0; break;
-			case 1:scaleFactorBits1L = 0; scaleFactorBits2L = 1; break;
-			case 2:scaleFactorBits1L = 0; scaleFactorBits2L = 2; break;
-			case 3:scaleFactorBits1L = 0; scaleFactorBits2L = 3; break;
-			case 4:scaleFactorBits1L = 3; scaleFactorBits2L = 0; break;
-			case 5:scaleFactorBits1L = 1; scaleFactorBits2L = 1; break;
-			case 6:scaleFactorBits1L = 1; scaleFactorBits2L = 2; break;
-			case 7:scaleFactorBits1L = 1; scaleFactorBits2L = 3; break;
-			case 8:scaleFactorBits1L = 2; scaleFactorBits2L = 1; break;
-			case 9:scaleFactorBits1L = 2; scaleFactorBits2L = 2; break;
-			case 10:scaleFactorBits1L = 2; scaleFactorBits2L = 3; break;
-			case 11:scaleFactorBits1L = 3; scaleFactorBits2L = 1; break;
-			case 12:scaleFactorBits1L = 3; scaleFactorBits2L = 2; break;
-			case 13:scaleFactorBits1L = 3; scaleFactorBits2L = 3; break;
-			case 14:scaleFactorBits1L = 4; scaleFactorBits2L = 2; break;
-			case 15:scaleFactorBits1L = 4; scaleFactorBits2L = 3; break;
+			case 0:scaleFactorBits1 = 0; scaleFactorBits2 = 0; break;
+			case 1:scaleFactorBits1 = 0; scaleFactorBits2 = 1; break;
+			case 2:scaleFactorBits1 = 0; scaleFactorBits2 = 2; break;
+			case 3:scaleFactorBits1 = 0; scaleFactorBits2 = 3; break;
+			case 4:scaleFactorBits1 = 3; scaleFactorBits2 = 0; break;
+			case 5:scaleFactorBits1 = 1; scaleFactorBits2 = 1; break;
+			case 6:scaleFactorBits1 = 1; scaleFactorBits2 = 2; break;
+			case 7:scaleFactorBits1 = 1; scaleFactorBits2 = 3; break;
+			case 8:scaleFactorBits1 = 2; scaleFactorBits2 = 1; break;
+			case 9:scaleFactorBits1 = 2; scaleFactorBits2 = 2; break;
+			case 10:scaleFactorBits1 = 2; scaleFactorBits2 = 3; break;
+			case 11:scaleFactorBits1 = 3; scaleFactorBits2 = 1; break;
+			case 12:scaleFactorBits1 = 3; scaleFactorBits2 = 2; break;
+			case 13:scaleFactorBits1 = 3; scaleFactorBits2 = 3; break;
+			case 14:scaleFactorBits1 = 4; scaleFactorBits2 = 2; break;
+			case 15:scaleFactorBits1 = 4; scaleFactorBits2 = 3; break;
 			}
-			System.out.println("Scale factor bits L: " + scaleFactorBits1L + 
-					" and " + scaleFactorBits2L);
 			temp = getUnsignedInt(sideBits, bitIndex, 4);
 			bitIndex += 4;
-			int scaleFactorBits1R = 0, scaleFactorBits2R = 0;
+			this.scaleFactorBits1R = 0;
+			this.scaleFactorBits2R = 0;
 			//the table to set the values:
 			switch(temp){
 			case 0:scaleFactorBits1R = 0; scaleFactorBits2R = 0; break;
@@ -479,18 +497,16 @@ public class MP3Frame {
 			case 14:scaleFactorBits1R = 4; scaleFactorBits2R = 2; break;
 			case 15:scaleFactorBits1R = 4; scaleFactorBits2R = 3; break;
 			}
-			System.out.println("Scale factor bits R: " + scaleFactorBits1R + 
-					" and " + scaleFactorBits2R);
 			
 			//the next windows_switching_flag 1 * 2 bits
 			//if this is set, then block_type, mixed_block_flag and subblock_gain are used
-			boolean windowSwitchingL = sideBits[bitIndex] == 1;
+			this.windowSwitching = sideBits[bitIndex] == 1;
 			bitIndex += 1;
-			boolean windowSwitchingR = sideBits[bitIndex] == 1;
+			this.windowSwitchingR = sideBits[bitIndex] == 1;
 			bitIndex += 1;
 			//block type
 			WindowSwitching switchTypeL = WindowSwitching.NORMAL;
-			if(windowSwitchingL){
+			if(windowSwitching){
 				if(sideBits[bitIndex] == 0){
 					switchTypeL = WindowSwitching.NORMAL;
 				} else {
@@ -503,7 +519,6 @@ public class MP3Frame {
 				
 				bitIndex += 2;
 			}
-			System.out.println("switch type L: " + switchTypeL);
 			WindowSwitching switchTypeR = WindowSwitching.NORMAL;
 			if(windowSwitchingR){
 				if(sideBits[bitIndex] == 0){
@@ -518,55 +533,43 @@ public class MP3Frame {
 				
 				bitIndex += 2;
 			}
-			System.out.println("switch type: " + switchTypeR);
 			//mixed block flag - 1 bit * 2
-			boolean mixedBlocksL = false;
-			if(windowSwitchingL){
-				mixedBlocksL = sideBits[bitIndex] == 1;
+			this.mixedBlocks = false;
+			if(windowSwitching){
+				mixedBlocks = sideBits[bitIndex] == 1;
 				bitIndex++;
 			}
-			System.out.println("Mixed blocks left: " + mixedBlocksL);
-			boolean mixedBlocksR = false;
+			this.mixedBlocksR = false;
 			if(windowSwitchingR){
 				mixedBlocksR = sideBits[bitIndex] == 1;
 				bitIndex++;
 			}
-			System.out.println("Mixed blocks right: " + mixedBlocksR);
-			/*
-			The mixed_block_flag indicates that different types of windows are used in the lower
-			 and higher frequencies. 
-			 If mixed_block_flag is set the two lowest subbands are transformed
-			  using a normal window and the remaining 30 subbands are transformed 
-			  using the window specified by the block_type variable.
-			*/
 			
 			//the huffman table select region
-			int[] tableSelectL;
-			if(windowSwitchingL){
+			if(windowSwitching){
 				//only need 2 tables with window switching
-				tableSelectL = new int[2];
+				this.tableSelect = new int[2];
 			} else {
 				//need 3 tables
-				tableSelectL = new int[3];
+				this.tableSelect = new int[3];
 			}
 			//load in the table selections
-			for(int i = 0; i < tableSelectL.length; i++){
+			for(int i = 0; i < tableSelect.length; i++){
 				//each is 5 bits
-				tableSelectL[i] |= sideBits[bitIndex] << 4;
-				tableSelectL[i] |= sideBits[bitIndex + 1] << 3;
-				tableSelectL[i] |= sideBits[bitIndex + 2] << 2;
-				tableSelectL[i] |= sideBits[bitIndex + 3] << 1;
-				tableSelectL[i] |= sideBits[bitIndex + 4];
+				tableSelect[i] |= sideBits[bitIndex] << 4;
+				tableSelect[i] |= sideBits[bitIndex + 1] << 3;
+				tableSelect[i] |= sideBits[bitIndex + 2] << 2;
+				tableSelect[i] |= sideBits[bitIndex + 3] << 1;
+				tableSelect[i] |= sideBits[bitIndex + 4];
 				bitIndex += 5;
 			}
-			System.out.println("Table selections left: " + Arrays.toString(tableSelectL));
-			int[] tableSelectR;
+
 			if(windowSwitchingR){
 				//only need 2 tables with window switching
-				tableSelectR = new int[2];
+				this.tableSelectR = new int[2];
 			} else {
 				//need 3 tables
-				tableSelectR = new int[3];
+				this.tableSelectR = new int[3];
 			}
 			//load in the table selections
 			for(int i = 0; i < tableSelectR.length; i++){
@@ -578,24 +581,23 @@ public class MP3Frame {
 				tableSelectR[i] |= sideBits[bitIndex + 4];
 				bitIndex += 5;
 			}
-			System.out.println("Table selections right: " + Arrays.toString(tableSelectR));
 			
-			int[] subblockGainsL = new int[tableSelectL.length];
+			this.subblockGains = new int[tableSelect.length];
 			//subblock gain - same length as the tables
 			//this is the gain offset from global gain
-			if(windowSwitchingL && switchTypeL == WindowSwitching.SHORT_3){
-				subblockGainsL[0] |= sideBits[bitIndex] << 2;
-				subblockGainsL[0] |= sideBits[bitIndex + 1] << 1;
-				subblockGainsL[0] |= sideBits[bitIndex + 2];
-				subblockGainsL[1] |= sideBits[bitIndex + 3] << 2;
-				subblockGainsL[1] |= sideBits[bitIndex + 4] << 1;
-				subblockGainsL[1] |= sideBits[bitIndex + 5];
-				subblockGainsL[2] |= sideBits[bitIndex + 6] << 2;
-				subblockGainsL[2] |= sideBits[bitIndex + 7] << 1;
-				subblockGainsL[2] |= sideBits[bitIndex + 8];
+			if(windowSwitching && switchTypeL == WindowSwitching.SHORT_3){
+				subblockGains[0] |= sideBits[bitIndex] << 2;
+				subblockGains[0] |= sideBits[bitIndex + 1] << 1;
+				subblockGains[0] |= sideBits[bitIndex + 2];
+				subblockGains[1] |= sideBits[bitIndex + 3] << 2;
+				subblockGains[1] |= sideBits[bitIndex + 4] << 1;
+				subblockGains[1] |= sideBits[bitIndex + 5];
+				subblockGains[2] |= sideBits[bitIndex + 6] << 2;
+				subblockGains[2] |= sideBits[bitIndex + 7] << 1;
+				subblockGains[2] |= sideBits[bitIndex + 8];
 				bitIndex += 9;
 			}
-			int[] subblockGainsR = new int[tableSelectR.length];
+			this.subblockGainsR = new int[tableSelectR.length];
 			//subblock gain for right
 			if(windowSwitchingR && switchTypeR == WindowSwitching.SHORT_3){
 				subblockGainsR[0] |= sideBits[bitIndex] << 2;
@@ -611,88 +613,76 @@ public class MP3Frame {
 			}
 			
 			//4 *2 bits, the number of bands in the first region
-			int region1BandsL = 0;
-			region1BandsL |= sideBits[bitIndex] << 3;
-			region1BandsL |= sideBits[bitIndex + 1] << 2;
-			region1BandsL |= sideBits[bitIndex + 2] << 1;
-			region1BandsL |= sideBits[bitIndex + 3];
-			region1BandsL += 1; //always increase by one
+			this.region1Bands = 0;
+			region1Bands |= sideBits[bitIndex] << 3;
+			region1Bands |= sideBits[bitIndex + 1] << 2;
+			region1Bands |= sideBits[bitIndex + 2] << 1;
+			region1Bands |= sideBits[bitIndex + 3];
+			region1Bands += 1; //always increase by one
 			bitIndex += 4;
-			System.out.println("Region 1 bands L: " + region1BandsL);
 			
-			int region1BandsR = 0;
+			this.region1BandsR = 0;
 			region1BandsR |= sideBits[bitIndex] << 3;
 			region1BandsR |= sideBits[bitIndex + 1] << 2;
 			region1BandsR |= sideBits[bitIndex + 2] << 1;
 			region1BandsR |= sideBits[bitIndex + 3];
 			region1BandsR += 1; //always increase by one
 			bitIndex += 4;
-			System.out.println("Region 1 bands R: " + region1BandsR);
 			
 			//3 * 2 bits, the number of bands in the second region
-			int region2BandsL = 0;
-			region2BandsL |= sideBits[bitIndex] << 2;
-			region2BandsL |= sideBits[bitIndex + 1] << 1;
-			region2BandsL |= sideBits[bitIndex + 2];
-			region2BandsL += 1;
+			this.region2Bands = 0;
+			region2Bands |= sideBits[bitIndex] << 2;
+			region2Bands |= sideBits[bitIndex + 1] << 1;
+			region2Bands |= sideBits[bitIndex + 2];
+			region2Bands += 1;
 			bitIndex += 3;
-			System.out.println("Region 2 bands L: " + region2BandsL);
 			
-			int region2BandsR = 0;
+			this.region2BandsR = 0;
 			region2BandsR |= sideBits[bitIndex] << 2;
 			region2BandsR |= sideBits[bitIndex + 1] << 1;
 			region2BandsR |= sideBits[bitIndex + 2];
 			region2BandsR += 1;
 			bitIndex += 3;
-			System.out.println("Region 2 bands R: " + region2BandsR);
 			
 			//next bit * 2 is to amplify the high frequencies
-			boolean amplifyHighFreqsL = false;
+			this.amplifyHighFreqs = false;
 			if(switchTypeL != WindowSwitching.SHORT_3){
-				amplifyHighFreqsL = sideBits[bitIndex] == 1;
+				amplifyHighFreqs = sideBits[bitIndex] == 1;
 				bitIndex++;
 			}
-			System.out.println("Amplify high frequencies left: " + amplifyHighFreqsL);
 			
-			boolean amplifyHighFreqsR = false;
+			this.amplifyHighFreqsR = false;
 			if(switchTypeR != WindowSwitching.SHORT_3){
 				amplifyHighFreqsR = sideBits[bitIndex] == 1;
 				bitIndex++;
 			}
-			System.out.println("Amplify high frequencies right: " + amplifyHighFreqsR);
 			
 			//the logarithmic step size, 1 * 2 bits
-			double scaleFactorScaleL = 2.0;
+			this.scaleFactorScale = 2.0;
 			if(sideBits[bitIndex] == 0){
-				scaleFactorScaleL = Math.sqrt(2.0);
+				scaleFactorScale = Math.sqrt(2.0);
 			}
 			bitIndex++;
-			System.out.println("scale factor step size left: " + scaleFactorScaleL);
-			double scaleFactorScaleR = 2.0;
+
+			this.scaleFactorScaleR = 2.0;
 			if(sideBits[bitIndex] == 0){
 				scaleFactorScaleR = Math.sqrt(2.0);
 			}
 			bitIndex++;
-			System.out.println("scale factor step size right: " + scaleFactorScaleR);
 			
 			//the next bit is if the 1st region has alternative huffman table
-			boolean altTable1L = false;
+			this.altTable1 = false;
 			if(sideBits[bitIndex] == 1){
-				altTable1L = true;
+				altTable1 = true;
 			}
 			bitIndex++;
-			System.out.println("Alt table left: " + altTable1L);
-			boolean altTable1R = false;
+			this.altTable1R = false;
 			if(sideBits[bitIndex] == 1){
 				altTable1R = true;
 			}
-			System.out.println("Alt table right: " + altTable1R);
 			index += 32;
-			//onto main data
+			//done with loading header / side information
 		}
-		
-		
-		
 	}
 
 	/**
@@ -793,11 +783,8 @@ public class MP3Frame {
 	 * @return The number of bytes offset to the next frame from this one
 	 */
 	public int getSize(){
+		//TODO - issue, the next frame is not found properly
 		int value = 4; //the 4 header bytes
-		//the crc - 16 bytes if used
-		if(this.crc){
-			value += 16;
-		}
 		
 		//the main data
 		System.out.println("Bits/sample " + this.bitsPerSample);
@@ -826,6 +813,7 @@ public class MP3Frame {
 	 * Each byte array contained is the data at each sample.
 	 */
 	public void loadData(byte[][] data, int offset){
+		//each sample in the data is 2 bytes for 1 channel, 4 bytes for 2 channel
 		//TODO load in the data (1152 samples)
 		//2 granules
 		//http://cutebugs.net/files/mpeg-drafts/11172-3.pdf
