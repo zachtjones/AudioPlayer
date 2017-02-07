@@ -1,7 +1,7 @@
 package model;
 /**
  * Converts numerical data types.
- * 
+ * This is used to convert bytes to their integer equivalents.
  * @author zach jones
  *
  */
@@ -22,8 +22,8 @@ public class Converter {
 	
 	/**
 	 * Returns a unisigned integer stored in a long (uint is not a type in java)
-	 * @param bytes The 4 byte array that represents the data.
-	 * @param offset The starting index in teh bytes array to pull 4 bytes from.
+	 * @param bytes The byte array that represents the data.
+	 * @param offset The starting index in the bytes array to pull 4 bytes from.
 	 * @return A uint's representation of the little-endian bytes stored in a signed long.
 	 * This result will always be >= 0.
 	 */

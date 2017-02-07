@@ -124,7 +124,7 @@ public class MP3Runner implements AudioRun {
 			}
 			
 		});
-		//don't want to halt the program from stopping when the program is done.
+		//don't want to halt the program from stopping while loading the frames.
 		t.setDaemon(true);
 		t.start();
 		

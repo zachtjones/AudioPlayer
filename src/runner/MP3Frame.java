@@ -783,7 +783,6 @@ public class MP3Frame {
 	 * @return The number of bytes offset to the next frame from this one
 	 */
 	public int getSize(){
-		//TODO - issue, the next frame is not found properly
 		int value = 4; //the 4 header bytes
 		
 		//the main data
@@ -816,6 +815,7 @@ public class MP3Frame {
 		//each sample in the data is 2 bytes for 1 channel, 4 bytes for 2 channel
 		//TODO load in the data (1152 samples)
 		//2 granules
+		//https://www.mp3-tech.org/programmer/decoding.html
 		//http://cutebugs.net/files/mpeg-drafts/11172-3.pdf
 	}
 
